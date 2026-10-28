@@ -27,6 +27,144 @@ else:
     file_path = "N1.csv"
     st.error(f"API request failed: {response.status_code}")
 
+
+# =========================================================
+# LIVE FOOTBALL DATA — API-FOOTBALL
+# Insert after the league_choice selectbox
+# =========================================================
+
+API_BASE = "https://v3.football.api-sports.io"
+
+LIVE_LEAGUES = {
+    "English Premier League": ("Premier League", "England"),
+    "Spanish La Liga": ("La Liga", "Spain"),
+    "German Bundesliga": ("Bundesliga", "Germany"),
+    "Italian Serie A": ("Serie A", "Italy"),
+    "French Ligue 1": ("Ligue 1", "France"),
+    "Netherlands Eredivisie": ("Eredivisie", "Netherlands"),
+}
+
+
+def get_live_api_key():
+    try:
+        return st.secrets["API_FOOTBALL_KEY"]
+    except Exception:
+        return None
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_live_matches(api_key, league_name, country_name):
+    """Fetch current live fixtures for the selected competition."""
+    response = requests.get(
+        f"{API_BASE}/fixtures",
+        headers={"x-apisports-key": api_key},
+        params={
+            "live": "all",
+            "timezone": "America/Jamaica",
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+
+    if payload.get("errors"):
+        raise ValueError(str(payload["errors"]))
+
+    matches = payload.get("response", [])
+
+    # Filter the live fixtures to the selected competition.
+    return [
+        match for match in matches
+        if match.get("league", {}).get("name", "").casefold()
+        == league_name.casefold()
+        and match.get("league", {}).get("country", "").casefold()
+        == country_name.casefold()
+    ]
+
+
+st.subheader("📡 Live Scores Centre")
+st.caption(
+    "Live scores from API-Football • Jamaica time • "
+    "Data availability depends on competition coverage."
+)
+
+api_key = get_live_api_key()
+
+refresh_col, info_col = st.columns([1, 3])
+
+with refresh_col:
+    refresh_live = st.button(
+        "🔄 Refresh Live Scores",
+        type="primary",
+        key="refresh_live_data",
+    )
+
+if refresh_live:
+    fetch_live_matches.clear()
+
+if not api_key:
+    st.warning(
+        "Live API key missing. Add API_FOOTBALL_KEY "
+        "to your Streamlit Secrets."
+    )
+else:
+    api_league, api_country = LIVE_LEAGUES[league_choice]
+
+    with info_col:
+        st.caption(f"Selected competition: {league_choice}")
+
+    try:
+        with st.spinner("Loading live football data..."):
+            live_matches = fetch_live_matches(
+                api_key, api_league, api_country
+            )
+
+        if not live_matches:
+            st.info(
+                f"No live matches found for {league_choice} "
+                "right now. Try refreshing during a match."
+            )
+        else:
+            live_rows = []
+
+            for match in live_matches:
+                fixture = match.get("fixture", {})
+                teams = match.get("teams", {})
+                goals = match.get("goals", {})
+                status = fixture.get("status", {})
+                league = match.get("league", {})
+
+                live_rows.append({
+                    "Competition": league.get("name"),
+                    "Home Team": teams.get("home", {}).get("name"),
+                    "Home Goals": goals.get("home"),
+                    "Away Goals": goals.get("away"),
+                    "Away Team": teams.get("away", {}).get("name"),
+                    "Minute": (
+                        f"{status.get('elapsed')}′"
+                        if status.get("elapsed") is not None
+                        else "-"
+                    ),
+                    "Status": status.get("long", "Unknown"),
+                    "Kickoff (Jamaica)": fixture.get("date"),
+                })
+
+            st.metric("Live matches", len(live_rows))
+            st.dataframe(
+                pd.DataFrame(live_rows),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+    except requests.RequestException as exc:
+        st.error(f"Live API connection failed: {exc}")
+    except (ValueError, KeyError, TypeError) as exc:
+        st.error(f"Could not process live data: {exc}")
+
+st.divider()
+# Continue with your existing CSV loading code below.
+
+
 # Mapping dataset division short-codes to clean display names
 competition_map = {
     "E0": "English Premier League (Tier 1)",
