@@ -1,53 +1,30 @@
-import requests
-import streamlit as st
+
 import pandas as pd
+import streamlit as st
+import random
 
-API_BASE = "https://v3.football.api-sports.io"
+st.set_page_config(page_title="Elite Multi-Market Hub", layout="wide")
+st.title("🏆 Elite Matchday Analytics & Odds Prediction Engine")
+st.write("An enterprise-grade portfolio hub tracking Fixture Details, Betting Odds, Form, Goals, BTTS, Corners, Halftime profiles, Bookings, and Player simulations.")
 
-key = st.secrets["API_FOOTBALL_KEY"]
-
-response = requests.get(
-    f"{API_BASE}/fixtures",
-    headers={"x-apisports-key": key},
-    params={"live": "all", "timezone": "America/Jamaica"},
-    timeout=20,
+# --- DATABASE LEAGUE MAPPING ---
+league_choice = st.selectbox(
+    "Select League Market", 
+    ["English Premier League", "Spanish La Liga", "German Bundesliga", "Italian Serie A", "French Ligue 1", "Netherlands Eredivisie"]
 )
 
-if response.ok:
-    payload = response.json()
-
-    if payload.get("errors"):
-        st.error(str(payload["errors"]))
-    else:
-        fixtures = payload.get("response", [])
-
-        if fixtures:
-            rows = []
-            for match in fixtures:
-                teams = match["teams"]
-                goals = match["goals"]
-                status = match["fixture"]["status"]
-
-                rows.append({
-                    "Home Team": teams["home"]["name"],
-                    "Home Score": goals["home"],
-                    "Away Score": goals["away"],
-                    "Away Team": teams["away"]["name"],
-                    "Minute": status["elapsed"],
-                    "Status": status["short"],
-                })
-
-            st.dataframe(
-                pd.DataFrame(rows),
-                use_container_width=True,
-                hide_index=True,
-            )
-        else:
-            st.info(
-                "No live fixtures are available right now. "
-                "Try again during a match."
-            )
+if league_choice == "English Premier League":
+    file_path = "E0.csv"
+elif league_choice == "Spanish La Liga":
+    file_path = "SP1.csv"
+elif league_choice == "German Bundesliga":
+    file_path = "D1.csv"
+elif league_choice == "Italian Serie A":
+    file_path = "I1.csv"
+elif league_choice == "French Ligue 1":
+    file_path = "F1.csv"
 else:
+    file_path = "N1.csv"
     st.error(f"API request failed: {response.status_code}")
 
 # Mapping dataset division short-codes to clean display names
